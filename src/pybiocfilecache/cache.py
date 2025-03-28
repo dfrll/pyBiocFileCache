@@ -19,6 +19,7 @@ from .utils import (
     copy_or_move,
     create_tmp_dir,
     download_web_file,
+    async_download_web_file,
     generate_id,
     generate_uuid,
 )
@@ -334,23 +335,37 @@ class BiocFileCache:
                 session.commit()
                 raise Exception("Failed to add resource") from e
 
-    def add_batch(self, resources: List[Dict[str, Any]]) -> BiocFrame:
+    async def add_batch(self, resources: List[Dict[str, str]]) -> List:
         """Add multiple resources in a single transaction.
 
         Args:
             resources:
-                List of resources to add.
+                A list of dictionaries where each dictionary contains the arguments
+                for the `add()` method.
         """
         results = []
         with self.get_session() as session:
             for resource_info in resources:
                 try:
+                    resource_info.update({
+                        "url": resource_info["fpath"],
+                        "filename": resource_info["rname"]
+                    })
+
+                    if self.get(resource_info["rname"]) is not None:
+                        raise FileExistsError(f"Resource '{resource_info["rname"]}' already exists")
+
+                    fpath = await async_download_web_file(**resource_info)
+
+                    resource_info.update({"rtype": "local", "fpath": fpath})
+                    [resource_info.pop(item) for item in ["url", "filename"]]
+
                     resource = self.add(**resource_info)
                     results.append(resource)
                 except Exception as e:
                     logger.error(f"Failed to add resource: {resource_info.get('rname')}", exc_info=e)
                     session.rollback()
-                    raise
+
         return results
 
     def update(

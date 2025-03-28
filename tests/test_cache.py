@@ -6,6 +6,7 @@ from pybiocfilecache import BiocFileCache, CacheConfig
 from pathlib import Path
 import pytest
 import tempfile
+import asyncio
 
 __author__ = "jkanche"
 __copyright__ = "jkanche"
@@ -135,5 +136,36 @@ def test_cache_with_config():
     assert len(rtrip) == 1
 
     bfc.cleanup()
+
+    bfc.purge()
+
+
+def test_batch_add_list_operations():
+    bfc = BiocFileCache(CACHE_DIR)
+
+    downurl_list = [
+        "https://bioconductor.org/packages/stats/bioc/BiocFileCache/BiocFileCache_2022_stats.tab",
+        "https://bioconductor.org/packages/stats/bioc/BiocFileCache/BiocFileCache_2023_stats.tab",
+        "https://bioconductor.org/packages/stats/bioc/BiocFileCache/BiocFileCache_2024_stats.tab",
+        "https://bioconductor.org/packages/stats/bioc/BiocFileCache/BiocFileCache_2025_stats.tab",
+    ]
+
+    batch_list = []
+    for pos in range(len(downurl_list)):
+        item_name = os.path.basename(downurl_list[pos])
+        batch_list.append({
+            'rname': item_name,
+            'fpath': downurl_list[pos],
+            'rtype': 'web',
+            'download': True,
+        })
+
+    async def main():
+        await bfc.add_batch(batch_list)
+
+    asyncio.run(main())
+
+    rtrip = bfc.list_resources()
+    assert len(rtrip) == 4
 
     bfc.purge()

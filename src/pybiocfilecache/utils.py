@@ -5,6 +5,7 @@ import tempfile
 import urllib.request
 import uuid
 import zlib
+import aiohttp
 from pathlib import Path
 from shutil import copy2, move
 from typing import List, Literal
@@ -98,6 +99,23 @@ def download_web_file(url: str, filename: str, download: bool):
 
     return outpath
 
+
+async def async_download_web_file(url: str, filename: str, download: bool, **kwargs):
+    tmp_dir = create_tmp_dir()
+    outpath = tmp_dir / filename
+    if download:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                with open(filename, mode="wb") as file:
+                    while True:
+                        chunk = await response.content.read()
+                        if not chunk:
+                            break
+                        file.write(chunk)
+    else:
+        open(str(outpath), "a").close()
+
+    return filename
 
 def convert_to_columnar(list_of_dicts: List[dict]):
     if not list_of_dicts:
